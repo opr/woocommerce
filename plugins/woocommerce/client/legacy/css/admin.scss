@@ -4058,6 +4058,10 @@ table.wc_shipping {
 			& > .woocommerce-help-tip {
 				display: none;
 			}
+
+			& > .woocommerce-help-tip.wc-shipping-visible-help-text {
+				display: inline-block;
+			}
 		}
 
 		fieldset {
