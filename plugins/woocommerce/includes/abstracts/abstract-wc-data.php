@@ -809,7 +809,8 @@ abstract class WC_Data {
 			}
 		}
 
-		return $errors && count( $errors->get_error_codes() ) ? $errors : true;
+		$error_codes = $errors->get_error_codes();
+		return $errors && is_countable($error_codes) && count( $error_codes ) ? $errors : true;
 	}
 
 	/**
