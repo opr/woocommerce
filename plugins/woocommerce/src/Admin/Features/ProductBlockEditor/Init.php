@@ -10,6 +10,7 @@ use Automattic\WooCommerce\Admin\Features\ProductBlockEditor\ProductTemplates\Si
 use Automattic\WooCommerce\Admin\Features\ProductBlockEditor\ProductTemplates\ProductVariationTemplate;
 use Automattic\WooCommerce\Admin\PageController;
 use Automattic\WooCommerce\Internal\Admin\BlockTemplateRegistry\BlockTemplateRegistry;
+use Automattic\WooCommerce\Internal\Admin\BlockTemplates\BlockTemplateLogger;
 use WP_Block_Editor_Context;
 
 /**
@@ -84,11 +85,15 @@ class Init {
 
 		$editor_settings = array();
 		if ( ! empty( $post_type_object->template ) ) {
-			$editor_settings['template']     = $post_type_object->template;
-			$editor_settings['templateLock'] = ! empty( $post_type_object->template_lock ) ? $post_type_object->template_lock : false;
-			$editor_settings['templates']    = array(
+			$editor_settings['template']       = $post_type_object->template;
+			$editor_settings['templateLock']   = ! empty( $post_type_object->template_lock ) ? $post_type_object->template_lock : false;
+			$editor_settings['templates']      = array(
 				'product'           => $post_type_object->template,
 				'product_variation' => $template_registry->get_registered( 'product-variation' )->get_formatted_template(),
+			);
+			$editor_settings['templateEvents'] = array(
+				'product'           => BlockTemplateLogger::get_instance()->get_template_events( 'simple-product' ),
+				'product_variation' => BlockTemplateLogger::get_instance()->get_template_events( 'product-variation' ),
 			);
 		}
 
