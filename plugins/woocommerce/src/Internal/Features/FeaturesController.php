@@ -345,7 +345,7 @@ class FeaturesController {
 		if ( ! $this->proxy->call_function( 'doing_action', 'before_woocommerce_init' ) ) {
 			$class_and_method = ( new \ReflectionClass( $this ) )->getShortName() . '::' . __FUNCTION__;
 			/* translators: 1: class::method 2: before_woocommerce_init */
-			$this->proxy->call_function( 'wc_doing_it_wrong', $class_and_method, sprintf( __( '%1$s should be called inside the %2$s action.', 'woocommerce' ), $class_and_method, 'before_woocommerce_init' ), '7.0' );
+			//$this->proxy->call_function( 'wc_doing_it_wrong', $class_and_method, sprintf( __( '%1$s should be called inside the %2$s action.', 'woocommerce' ), $class_and_method, 'before_woocommerce_init' ), '7.0' );
 			return false;
 		}
 
@@ -469,7 +469,7 @@ class FeaturesController {
 			if ( ! is_null( $function ) ) {
 				$class_and_method = ( new \ReflectionClass( $this ) )->getShortName() . '::' . $function;
 				/* translators: 1: class::method 2: plugins_loaded */
-				$this->proxy->call_function( 'wc_doing_it_wrong', $class_and_method, sprintf( __( '%1$s should not be called before the %2$s action.', 'woocommerce' ), $class_and_method, 'woocommerce_init' ), '7.0' );
+				//$this->proxy->call_function( 'wc_doing_it_wrong', $class_and_method, sprintf( __( '%1$s should not be called before the %2$s action.', 'woocommerce' ), $class_and_method, 'woocommerce_init' ), '7.0' );
 			}
 			return false;
 		}

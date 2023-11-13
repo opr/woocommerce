@@ -1229,7 +1229,7 @@ class WC_Install {
 			self::should_enable_hpos_for_new_shop()
 		;
 		$hpos_table_schema = $hpos_enabled ? wc_get_container()->get( OrdersTableDataStore::class )->get_database_schema() : '';
-		$templating_engine_schema = wc_get_container()->get( TemplatingEngine::class )->get_database_schema();
+		$templating_engine_schema = ''; // wc_get_container()->get( TemplatingEngine::class )->get_database_schema();
 
 		$tables = "
 CREATE TABLE {$wpdb->prefix}woocommerce_sessions (

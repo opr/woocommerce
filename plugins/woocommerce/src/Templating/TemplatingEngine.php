@@ -2,6 +2,7 @@
 
 namespace Automattic\WooCommerce\Templating;
 
+use Automattic\WooCommerce\Proxies\LegacyProxy;
 use \Exception;
 use \InvalidArgumentException;
 use \OverflowException;
@@ -35,25 +36,18 @@ class TemplatingEngine {
 	private const ACTION_GROUP        = 'wc_batch_processes';
 
 	/**
-	 * Default directory where templates are stored.
-	 *
-	 * @var string
-	 */
-	private string $default_templates_directory;
-
-	/**
 	 * The instance of TimeUtil to use.
 	 *
 	 * @var TimeUtil
 	 */
 	private TimeUtil $time_util;
 
+	private LegacyProxy $legacy_proxy;
+
 	/**
 	 * Class constructor.
 	 */
 	public function __construct() {
-		$this->default_templates_directory = __DIR__ . '/Templates';
-
 		self::add_action( self::CLEANUP_ACTION_NAME, array( $this, 'handle_expired_files_cleanup_action' ) );
 		self::add_filter( 'woocommerce_debug_tools', array( $this, 'add_debug_tools_entries' ), 999, 1 );
 	}
@@ -64,8 +58,9 @@ class TemplatingEngine {
 	 * @internal
 	 * @param TimeUtil $time_util The instance of TimeUtil to use.
 	 */
-	final public function init( TimeUtil $time_util ) {
+	final public function init( TimeUtil $time_util, LegacyProxy $legacy_proxy) {
 		$this->time_util = $time_util;
+		$this->legacy_proxy = $legacy_proxy;
 	}
 
 	// phpcs:disable Squiz.Commenting.FunctionCommentThrowTag.WrongNumber
@@ -135,6 +130,7 @@ class TemplatingEngine {
 				if ( is_numeric( $expiration_date ) ) {
 					$expiration_date = gmdate( 'Y-m-d H:i:s', $expiration_date );
 				} elseif ( ! is_string( $expiration_date ) || ! TimeUtil::is_valid_date( $expiration_date ) ) {
+					$expiration_date = is_scalar($expiration_date) ? $expiration_date : gettype($expiration_date);
 					throw new InvalidArgumentException( "$expiration_date is not a valid date, expected format: year-month-day hour:minute:second" );
 				}
 			} elseif ( ! is_null( $metadata['expiration_seconds'] ?? null ) ) {
@@ -151,7 +147,8 @@ class TemplatingEngine {
 				$minimum_expiration_seconds = apply_filters( 'woocommerce_rendered_template_minimum_expiration_seconds', 60 );
 
 				if ( ! is_numeric( $expiration_seconds ) || (int) $expiration_seconds < $minimum_expiration_seconds ) {
-					throw new InvalidArgumentException( 'expiration_seconds must be a number and have a minimum value of 60' );
+					$expiration_seconds = is_scalar($expiration_seconds) ? $expiration_seconds : gettype($expiration_seconds);
+					throw new InvalidArgumentException( "Expiration_seconds must be a number and have a minimum value of 60, got $expiration_seconds" );
 				}
 				$now_gmt         = current_time( 'mysql', true );
 				$expiration_date = gmdate( 'Y-m-d H:i:s', strtotime( $now_gmt ) + (int) $expiration_seconds );
@@ -182,16 +179,16 @@ class TemplatingEngine {
 
 			$rendered_files_directory  = $this->get_rendered_files_directory();
 			$rendered_files_directory .= '/' . substr( $expiration_date, 0, 7 );
-			if ( ! is_dir( $rendered_files_directory ) ) {
-				if ( ! wp_mkdir_p( $rendered_files_directory ) ) {
+			if ( ! $this->legacy_proxy->call_function('is_dir', $rendered_files_directory ) ) {
+				if ( ! $this->legacy_proxy->call_function( 'wp_mkdir_p', $rendered_files_directory ) ) {
 					throw new Exception( "Can't create directory: $rendered_files_directory" );
 				}
 			}
 			$filepath = $rendered_files_directory . '/' . $filename;
 
-			$file_handle = fopen( $filepath, 'w' );
+			$file_handle = $this->legacy_proxy->call_function( 'fopen', $filepath, 'w' );
 			if ( ! $file_handle ) {
-				throw new Exception( "Can't create file to render template $template_name" );
+				throw new Exception( "Can't create file to render template '$template_name'" );
 			}
 
 			$ob_callback = function( $data, $flags ) use ( $file_handle ) {
@@ -199,9 +196,10 @@ class TemplatingEngine {
 				return null;
 			};
 		} else {
-			$ob_callback = fn( $data, $flags) => null;
+			$ob_callback = fn( $data, $flags ) => null;
 		}
 
+		$ob_initial_level = ob_get_level();
 		ob_start( $ob_callback );
 		try {
 			$this->render_template_core( $template_name, $variables, null, false, 0 );
@@ -215,7 +213,8 @@ class TemplatingEngine {
 			fclose( $file_handle );
 			$render_ok = true;
 		} finally {
-			if ( ob_get_level() > 0 ) {
+			while(ob_get_level() > $ob_initial_level) {
+				// This will happen only in case of unhandled error.
 				ob_end_clean();
 			}
 			if ( ! $render_ok && $render_to_file ) {
@@ -283,7 +282,8 @@ class TemplatingEngine {
 	 * @throws Exception The base directory (possibly changed via filter) doesn't exist.
 	 */
 	public function get_rendered_files_directory(): string {
-		$rendered_templates_directory = untrailingslashit( wp_upload_dir()['basedir'] ) . '/woocommerce_rendered_templates';
+		$upload_dir_info = $this->legacy_proxy->call_function('wp_upload_dir');
+		$rendered_templates_directory = untrailingslashit( $upload_dir_info['basedir'] ) . '/woocommerce_rendered_templates';
 
 		/**
 		 * Filters the directory where the physical rendered files are stored.
@@ -297,7 +297,7 @@ class TemplatingEngine {
 		 */
 		$rendered_templates_directory = apply_filters( 'woocommerce_rendered_templates_directory', $rendered_templates_directory );
 
-		$realpathed_rendered_templates_directory = realpath( $rendered_templates_directory );
+		$realpathed_rendered_templates_directory = $this->legacy_proxy->call_function( 'realpath', $rendered_templates_directory );
 		if ( false === $realpathed_rendered_templates_directory ) {
 			throw new Exception( "The base rendered templates directory doesn't exist: $rendered_templates_directory" );
 		}
@@ -324,9 +324,10 @@ class TemplatingEngine {
 			throw new OverflowException( 'Template rendering depth of 256 levels reached, possible circular reference when rendering secondary templates.' );
 		}
 
-		$template_directory = ( $relative && ! is_null( $parent_template_path ) ) ? dirname( $parent_template_path ) : $this->default_templates_directory;
+		$template_directory = ( $relative && ! is_null( $parent_template_path ) ) ? dirname( $parent_template_path ) : $this->get_default_templates_directory();
 		$template_path      = $template_directory . '/' . $template_name . ( is_null( pathinfo( $template_name )['extension'] ?? null ) ? '.template' : '' );
-		$template_path      = realpath( $template_path );
+		$template_path      = $this->legacy_proxy->call_function('realpath', $template_path );
+
 		if ( false === $template_path || strpos( $template_path, $template_directory . DIRECTORY_SEPARATOR ) !== 0 ) {
 			$template_path = null;
 		}
@@ -356,6 +357,10 @@ class TemplatingEngine {
 		// "Execute" the template file, with the instance of TemplateRenderingContext seen as "$this" from within the template code.
 		$include_template_file = ( fn() => include $template_path )->bindTo( $context, $context );
 		$include_template_file();
+	}
+
+	private function get_default_templates_directory(): string {
+		return $this->legacy_proxy->call_function('dirname',__FILE__) . '/Templates';
 	}
 
 	/**
