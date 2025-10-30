@@ -70,4 +70,4 @@ PROMPT_EOF
         uses: actions/upload-artifact@v4
         with:
           name: claude-prompt-pr-${{ github.run_number }}
-          path: prompt.txt
+          path: ${{ github.workspace }}/prompt.txt
