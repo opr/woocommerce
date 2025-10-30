@@ -101,7 +101,7 @@ jobs:
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d "{\"model\":\"claude-3-5-sonnet-20241022\",\"max_tokens\":8192,\"messages\":[{\"role\":\"user\",\"content\":$prompt_content}]}")
+            -d "{\"model\":\"claude-sonnet-4-5-20250929\",\"max_tokens\":8192,\"messages\":[{\"role\":\"user\",\"content\":$prompt_content}]}")
 
           # Save raw response for debugging
           echo "$response" > claude-raw-response.json
