@@ -93,25 +93,15 @@ jobs:
 
           echo "Sending to Claude API..."
 
-          # Read the prompt content
-          prompt_content=$(cat prompt.txt)
+          # Read the prompt content and prepare JSON payload
+          prompt_content=$(cat prompt.txt | jq -Rs .)
 
           # Call Claude API
           response=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d @- << 'CURL_EOF'
-            {
-              "model": "claude-3-5-sonnet-20241022",
-              "max_tokens": 8192,
-              "messages": [{
-                "role": "user",
-                "content": $(echo "$prompt_content" | jq -Rs .)
-              }]
-            }
-            CURL_EOF
-                      )
+            -d "{\"model\":\"claude-3-5-sonnet-20241022\",\"max_tokens\":8192,\"messages\":[{\"role\":\"user\",\"content\":$prompt_content}]}")
 
           # Save response to file
           echo "$response" | jq -r '.content[0].text' > claude-response.txt
