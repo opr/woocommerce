@@ -103,10 +103,20 @@ jobs:
             -H "content-type: application/json" \
             -d "{\"model\":\"claude-3-5-sonnet-20241022\",\"max_tokens\":8192,\"messages\":[{\"role\":\"user\",\"content\":$prompt_content}]}")
 
-          # Save response to file
-          echo "$response" | jq -r '.content[0].text' > claude-response.txt
+          # Save raw response for debugging
+          echo "$response" > claude-raw-response.json
 
-          echo "Claude analysis complete. Response saved to claude-response.txt"
+          # Check if response has error
+          if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+            echo "API Error occurred:"
+            echo "$response" | jq '.error'
+            echo "$response" | jq -r '.error.message' > claude-response.txt
+          else
+            # Save parsed response to file
+            echo "$response" | jq -r '.content[0].text' > claude-response.txt
+            echo "Claude analysis complete. Response saved to claude-response.txt"
+          fi
+
           echo "Check the artifacts to view the full prompt and response."
 
       - name: Upload prompt
@@ -120,3 +130,9 @@ jobs:
         with:
           name: claude-response-pr-${{ github.run_number }}
           path: claude-response.txt
+
+      - name: Upload raw API response
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-raw-response-pr-${{ github.run_number }}
+          path: claude-raw-response.json
