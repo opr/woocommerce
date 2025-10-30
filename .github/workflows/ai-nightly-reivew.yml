@@ -32,7 +32,8 @@ jobs:
             --argjson review_comments "$review_comments" \
             '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
 
-          cat > prompt.txt << 'EOF'
+          # Create the system prompt in a variable
+          read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF'
           You are reviewing a pull request for WooCommerce. You should not focus on the actual code, but rather the
           process the author, reviewers, and tools they used went through to merge the PR. The important thing you should
           identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
@@ -46,16 +47,8 @@ jobs:
           1. {Brief issue title} - [Comment link] {status: "seems unaddressed" or brief 1-sentence context} (criticality rating: 1-10)
           2. {Brief issue title} - [Comment link] {status} (criticality rating: 1-10)
           ...
-          
-          Here is the PR data:
 
-          EOF
-
-          echo "$audit_data" | jq '.' >> prompt.txt
-
-          cat >> prompt.txt << 'EOF'
-
-          Analyze this PR:
+          Things to think about during your output generation:
 
           1. Risk assessment - does testing coverage + review depth match the risk level? For example a PR that changes
              critical functionality (payments, orders, security) should have extensive review comments and testing coverage.
@@ -65,6 +58,7 @@ jobs:
           2. Unresolved comments - list any questions/concerns raised but not addressed
              **Filtering Rules:**
              - EXCLUDE issues explicitly marked for follow-up work (e.g., "Todo:", "iterate in follow up", "address in next PR")
+             - EXCLUDE issues that are acknowledged and that are noted to be worked on in a followup. 
              - INCLUDE issues that were:
                - Raised in comments but never responded to
                - Flagged by automated tools (CodeRabbit, etc.) but not fixed in subsequent commits
@@ -87,21 +81,36 @@ jobs:
           
           4. For each line in the output, rate it 1-10 in terms of how critical it is that this is addressed. If it is
           less than 7, do not include it in the final output.
-          EOF
+          PROMPT_EOF
 
-          echo "Prompt saved to prompt.txt"
+          # Escape the system prompt for JSON
+          SYSTEM_PROMPT_JSON=$(echo "$SYSTEM_PROMPT" | jq -Rs .)
+
+          # Create the user message content (the audit data as JSON string)
+          USER_MESSAGE=$(echo "$audit_data" | jq -c | jq -Rs .)
 
           echo "Sending to Claude API..."
 
-          # Read the prompt content and prepare JSON payload
-          prompt_content=$(cat prompt.txt | jq -Rs .)
-
-          # Call Claude API
+          # Call Claude API with properly escaped JSON
           response=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
-            -d "{\"model\":\"claude-sonnet-4-5-20250929\",\"max_tokens\":8192,\"messages\":[{\"role\":\"user\",\"content\":$prompt_content}]}")
+            -d @- << JSON_EOF
+          {
+            "model": "claude-sonnet-4-5-20250929",
+            "max_tokens": 20000,
+            "temperature": 1,
+            "system": $SYSTEM_PROMPT_JSON,
+            "messages": [
+              {
+                "role": "user",
+                "content": $USER_MESSAGE
+              }
+            ]
+          }
+          JSON_EOF
+          )
 
           # Save raw response for debugging
           echo "$response" > claude-raw-response.json
@@ -118,12 +127,6 @@ jobs:
           fi
 
           echo "Check the artifacts to view the full prompt and response."
-
-      - name: Upload prompt
-        uses: actions/upload-artifact@v4
-        with:
-          name: claude-prompt-pr-${{ github.run_number }}
-          path: prompt.txt
 
       - name: Upload Claude response
         uses: actions/upload-artifact@v4
