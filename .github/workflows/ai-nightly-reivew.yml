@@ -32,8 +32,8 @@ jobs:
             --argjson review_comments "$review_comments" \
             '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
 
-          # Create the system prompt in a variable
-          read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF'
+          # Create the system prompt in a variable (using || true to handle read's exit code)
+          read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF' || true
           You are reviewing a pull request for WooCommerce. You should not focus on the actual code, but rather the
           process the author, reviewers, and tools they used went through to merge the PR. The important thing you should
           identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
