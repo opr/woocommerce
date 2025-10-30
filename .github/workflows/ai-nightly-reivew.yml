@@ -37,6 +37,16 @@ jobs:
           process the author, reviewers, and tools they used went through to merge the PR. The important thing you should
           identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
           
+          **Final Output Format:**
+          After completing analysis sections 1-3 above, provide a final summary in this format, please don't add any other output except this list:
+
+          ---
+
+          Potential issues with PR #[number]([link])
+          1. {Brief issue title} - [Comment link] {status: "seems unaddressed" or brief 1-sentence context} (criticality rating: 1-10)
+          2. {Brief issue title} - [Comment link] {status} (criticality rating: 1-10)
+          ...
+          
           Here is the PR data:
 
           EOF
@@ -63,16 +73,6 @@ jobs:
 
           3. Categorize by type: style/minor, functional bugs, security, unanswered questions
 
-          **Final Output Format:**
-          After completing analysis sections 1-3 above, provide a final summary in this format:
-
-          ---
-
-          Potential issues with PR #[number]([link])
-          1. {Brief issue title} - [Comment link] {status: "seems unaddressed" or brief 1-sentence context}
-          2. {Brief issue title} - [Comment link] {status}
-          ...
-
           **Prioritization for final list:**
           - Functional bugs (data loss, errors, broken features)
           - User-facing behavior issues (settings not working, incorrect UI states)
@@ -84,6 +84,9 @@ jobs:
           - Performance micro-optimizations
           - Suggestions for "could also do X" that weren't core to the review
           - Nice-to-haves that aren't blocking issues
+          
+          4. For each line in the output, rate it 1-10 in terms of how critical it is that this is addressed. If it is
+          less than 7, do not include it in the final output.
           EOF
 
           cat prompt.txt
