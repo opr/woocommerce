@@ -8,25 +8,44 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup - pnpm
-        uses: pnpm/action-setup@a7487c7e89a18df4991f7f222e4898a00d66ddda # v4.1.0
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - run: pnpm i --frozen-lockfile
-      
       - name: Audit merged PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          prs=$(gh pr list --repo woocommerce/woocommerce --state merged --limit 50 --json number,mergedAt | \
-            jq -c '[.[] | select(.mergedAt | fromdateiso8601 > (now - 86400))]')
+          # For testing, hardcode a specific PR
+          pr_num=59189
 
-          echo "$prs" | jq -r '.[].number' | while read pr_num; do
-            echo "auditing $pr_num"
-          done
+          echo "Fetching PR #$pr_num details..."
+          pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json title,body,additions,deletions,changedFiles,files,labels,mergeable)
+
+          echo "Fetching PR #$pr_num comments..."
+          comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
+
+          echo "Fetching PR #$pr_num reviews..."
+          reviews=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
+
+          echo "Fetching PR #$pr_num review comments..."
+          review_comments=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
+
+          # Combine all data into a single JSON object
+          audit_data=$(jq -n \
+            --argjson pr "$pr_data" \
+            --argjson comments "$comments" \
+            --argjson reviews "$reviews" \
+            --argjson review_comments "$review_comments" \
+            '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
+
+          echo "=== Prompt that would be sent to Claude for PR #$pr_num ==="
+          echo ""
+          echo "You are reviewing a pull request for WooCommerce. Here is the PR data:"
+          echo ""
+          echo "$audit_data" | jq '.'
+          echo ""
+          echo "Please analyze this PR and answer the following questions:"
+          echo ""
+          echo "1. Does this PR seem risky? If so, do the testing steps, depth of review, and addition of unit tests (if any) help with confidence on this?"
+          echo ""
+          echo "2. Looking at the comments, do you notice any questions or concerns that were raised but not answered or addressed by a code change? If so, please summarize each question."
+          echo ""
+          echo "Provide your analysis in a clear, structured format."
