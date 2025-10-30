@@ -33,7 +33,11 @@ jobs:
             '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
 
           cat > prompt.txt << 'EOF'
-          You are reviewing a pull request for WooCommerce. Here is the PR data:
+          You are reviewing a pull request for WooCommerce. You should not focus on the actual code, but rather the
+          process the author, reviewers, and tools they used went through to merge the PR. The important thing you should
+          identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
+          
+          Here is the PR data:
 
           EOF
 
@@ -43,9 +47,43 @@ jobs:
 
           Analyze this PR:
 
-          1. Risk assessment - does testing coverage + review depth match the risk level?
+          1. Risk assessment - does testing coverage + review depth match the risk level? For example a PR that changes
+             critical functionality (payments, orders, security) should have extensive review comments and testing coverage.
+             A low-risk PR (typo fixes, docs updates) may not need any review at all. If a PR that seems high-risk has very
+             little review or testing, flag that as a potential issue.
+
           2. Unresolved comments - list any questions/concerns raised but not addressed
+             **Filtering Rules:**
+             - EXCLUDE issues explicitly marked for follow-up work (e.g., "Todo:", "iterate in follow up", "address in next PR")
+             - INCLUDE issues that were:
+               - Raised in comments but never responded to
+               - Flagged by automated tools (CodeRabbit, etc.) but not fixed in subsequent commits
+               - Acknowledged but dismissed without clear resolution
+               - Questions asked but never answered
+
           3. Categorize by type: style/minor, functional bugs, security, unanswered questions
+
+          **Final Output Format:**
+          After completing analysis sections 1-3 above, provide a final summary in this format:
+
+          ---
+
+          Potential issues with PR #[number]([link])
+          1. {Brief issue title} - [Comment link] {status: "seems unaddressed" or brief 1-sentence context}
+          2. {Brief issue title} - [Comment link] {status}
+          ...
+
+          **Prioritization for final list:**
+          - Functional bugs (data loss, errors, broken features)
+          - User-facing behavior issues (settings not working, incorrect UI states)
+          - Code quality issues (missing error handling, incorrect implementations)
+          - Developer experience (confusing testing instructions, misleading documentation)
+
+          **Exclude from final list:**
+          - Style/formatting unless it causes functional issues
+          - Performance micro-optimizations
+          - Suggestions for "could also do X" that weren't core to the review
+          - Nice-to-haves that aren't blocking issues
           EOF
 
           cat prompt.txt
