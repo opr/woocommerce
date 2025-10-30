@@ -38,7 +38,7 @@ jobs:
           identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
           
           **Final Output Format:**
-          After completing analysis sections 1-3 above, provide a final summary in this format, please don't add any other output except this list:
+          After completing analysis sections 1-3 above, provide a final summary in markdown format, please don't add any other output except this list:
 
           ---
 
@@ -91,8 +91,41 @@ jobs:
 
           cat prompt.txt
 
+          echo ""
+          echo "=== Sending to Claude API ==="
+
+          # Read the prompt content
+          prompt_content=$(cat prompt.txt)
+
+          # Call Claude API
+                    response=$(curl -s https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" \
+            -H "anthropic-version: 2023-06-01" \
+            -H "content-type: application/json" \
+            -d @- << 'CURL_EOF'
+            {
+              "model": "claude-3-5-sonnet-20241022",
+              "max_tokens": 8192,
+              "messages": [{
+                "role": "user",
+                "content": $(echo "$prompt_content" | jq -Rs .)
+              }]
+            }
+            CURL_EOF
+            )
+
+          echo ""
+          echo "=== Claude Analysis for PR #$pr_num ==="
+          echo "$response" | jq -r '.content[0].text' | tee claude-response.txt
+
       - name: Upload prompt
         uses: actions/upload-artifact@v4
         with:
           name: claude-prompt-pr-${{ github.run_number }}
           path: prompt.txt
+
+      - name: Upload Claude response
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-response-pr-${{ github.run_number }}
+          path: claude-response.txt
