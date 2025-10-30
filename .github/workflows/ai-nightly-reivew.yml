@@ -38,15 +38,15 @@ jobs:
 
           echo "=== Prompt that would be sent to Claude for PR #$pr_num ==="
 
-          # Create prompt file
-          cat > prompt.txt << 'PROMPT_EOF'
+          # Create prompt file in workspace
+          cat > $GITHUB_WORKSPACE/prompt.txt << 'PROMPT_EOF'
 You are reviewing a pull request for WooCommerce. Here is the PR data:
 
 PROMPT_EOF
 
-          echo "$audit_data" | jq '.' >> prompt.txt
+          echo "$audit_data" | jq '.' >> $GITHUB_WORKSPACE/prompt.txt
 
-          cat >> prompt.txt << 'PROMPT_EOF'
+          cat >> $GITHUB_WORKSPACE/prompt.txt << 'PROMPT_EOF'
 
 Please analyze this PR and answer the following questions:
 
@@ -64,7 +64,7 @@ Provide your analysis in a clear, structured format.
 PROMPT_EOF
 
           # Also output to logs
-          cat prompt.txt
+          cat $GITHUB_WORKSPACE/prompt.txt
 
       - name: Upload prompt as artifact
         uses: actions/upload-artifact@v4
