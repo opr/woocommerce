@@ -37,20 +37,37 @@ jobs:
             '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
 
           echo "=== Prompt that would be sent to Claude for PR #$pr_num ==="
-          echo ""
-          echo "You are reviewing a pull request for WooCommerce. Here is the PR data:"
-          echo ""
-          echo "$audit_data" | jq '.'
-          echo ""
-          echo "Please analyze this PR and answer the following questions:"
-          echo ""
-          echo "1. Does this PR seem risky? If so, do the testing steps, depth of review, and addition of unit tests (if any) help with confidence on this?"
-          echo ""
-          echo "   2. Looking at the comments, do you notice any questions or concerns that were raised but not answered or addressed? This includes:"
-          echo "      - Code quality/style suggestions"
-          echo "      - Bug reports or unexpected behavior"
-          echo "      - Security concerns"
-          echo "      - Unanswered questions"
-          echo ""
-          echo "4. Categorize unresolved comments by type: style/minor, functional bugs,security issues, unanswered questions"
-          echo "Provide your analysis in a clear, structured format."
+
+          # Create prompt file
+          cat > prompt.txt << 'PROMPT_EOF'
+You are reviewing a pull request for WooCommerce. Here is the PR data:
+
+PROMPT_EOF
+
+          echo "$audit_data" | jq '.' >> prompt.txt
+
+          cat >> prompt.txt << 'PROMPT_EOF'
+
+Please analyze this PR and answer the following questions:
+
+1. Does this PR seem risky? If so, do the testing steps, depth of review, and addition of unit tests (if any) help with confidence on this?
+
+   2. Looking at the comments, do you notice any questions or concerns that were raised but not answered or addressed? This includes:
+      - Code quality/style suggestions
+      - Bug reports or unexpected behavior
+      - Security concerns
+      - Unanswered questions
+
+4. Categorize unresolved comments by type: style/minor, functional bugs,security issues, unanswered questions
+
+Provide your analysis in a clear, structured format.
+PROMPT_EOF
+
+          # Also output to logs
+          cat prompt.txt
+
+      - name: Upload prompt as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-prompt-pr-${{ github.run_number }}
+          path: prompt.txt
