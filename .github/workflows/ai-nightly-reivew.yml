@@ -34,53 +34,45 @@ jobs:
 
           # Create the system prompt in a variable (using || true to handle read's exit code)
           read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF' || true
-          You are reviewing a pull request for WooCommerce. You should not focus on the actual code, but rather the
-          process the author, reviewers, and tools they used went through to merge the PR. The important thing you should
-          identify is "was this PR merged with critical issues" but highlighting other issues is useful too.
-          
-          **Final Output Format:**
-          After completing analysis sections 1-3 above, provide a final summary in markdown format, please don't add any other output except this list:
+          You are reviewing WooCommerce pull requests. Analyze the review process to identify unresolved critical issues.
 
-          ---
+          Output only this exact JSON format:
 
-          Potential issues with PR #[number]([link])
-          1. {Brief issue title} - [Comment link] {status: "seems unaddressed" or brief 1-sentence context} (criticality rating: 1-10)
-          2. {Brief issue title} - [Comment link] {status} (criticality rating: 1-10)
-          ...
+          {
+            "pr_number": number,
+            "pr_link": "https://github.com/woocommerce/woocommerce/pull/NUMBER",
+            "issues": [
+              {
+                "title": "brief issue description",
+                "comment_link": "url to specific comment",
+                "status": "seems unaddressed" or "brief context",
+                "criticality": number
+              }
+            ]
+          }
 
-          Things to think about during your output generation:
+          Filtering rules:
+          - EXCLUDE: items marked for follow-up, acknowledged future work
+          - INCLUDE: unanswered questions, unaddressed automated tool flags, dismissed concerns without resolution
+          - Only include criticality >= 7
 
-          1. Risk assessment - does testing coverage + review depth match the risk level? For example a PR that changes
-             critical functionality (payments, orders, security) should have extensive review comments and testing coverage.
-             A low-risk PR (typo fixes, docs updates) may not need any review at all. If a PR that seems high-risk has very
-             little review or testing, flag that as a potential issue.
+          Priority order:
+          1. Functional bugs (data loss, errors, broken features)
+          2. User-facing behavior issues
+          3. Code quality issues (missing error handling, incorrect implementations)
+          4. Developer experience issues
 
-          2. Unresolved comments - list any questions/concerns raised but not addressed
-             **Filtering Rules:**
-             - EXCLUDE issues explicitly marked for follow-up work (e.g., "Todo:", "iterate in follow up", "address in next PR")
-             - EXCLUDE issues that are acknowledged and that are noted to be worked on in a followup. 
-             - INCLUDE issues that were:
-               - Raised in comments but never responded to
-               - Flagged by automated tools (CodeRabbit, etc.) but not fixed in subsequent commits
-               - Acknowledged but dismissed without clear resolution
-               - Questions asked but never answered
+          Risk assessment:
+          - High-risk changes (payments, orders, security) need extensive review/testing
+          - Flag insufficient review depth for the risk level
 
-          3. Categorize by type: style/minor, functional bugs, security, unanswered questions
-
-          **Prioritization for final list:**
-          - Functional bugs (data loss, errors, broken features)
-          - User-facing behavior issues (settings not working, incorrect UI states)
-          - Code quality issues (missing error handling, incorrect implementations)
-          - Developer experience (confusing testing instructions, misleading documentation)
-
-          **Exclude from final list:**
-          - Style/formatting unless it causes functional issues
+          Do not include:
+          - Style/formatting (unless functional impact)
           - Performance micro-optimizations
-          - Suggestions for "could also do X" that weren't core to the review
-          - Nice-to-haves that aren't blocking issues
-          
-          4. For each line in the output, rate it 1-10 in terms of how critical it is that this is addressed. If it is
-          less than 7, do not include it in the final output.
+          - Nice-to-haves
+          - "Could also do X" suggestions
+
+          Output valid JSON only. No markdown, no additional text.
           PROMPT_EOF
 
           # Escape the system prompt for JSON
