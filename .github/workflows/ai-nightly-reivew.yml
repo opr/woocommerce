@@ -89,16 +89,15 @@ jobs:
           less than 7, do not include it in the final output.
           EOF
 
-          cat prompt.txt
+          echo "Prompt saved to prompt.txt"
 
-          echo ""
-          echo "=== Sending to Claude API ==="
+          echo "Sending to Claude API..."
 
           # Read the prompt content
           prompt_content=$(cat prompt.txt)
 
           # Call Claude API
-                    response=$(curl -s https://api.anthropic.com/v1/messages \
+          response=$(curl -s https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" \
             -H "anthropic-version: 2023-06-01" \
             -H "content-type: application/json" \
@@ -112,11 +111,13 @@ jobs:
               }]
             }
             CURL_EOF
-            )
+                      )
 
-          echo ""
-          echo "=== Claude Analysis for PR #$pr_num ==="
-          echo "$response" | jq -r '.content[0].text' | tee claude-response.txt
+          # Save response to file
+          echo "$response" | jq -r '.content[0].text' > claude-response.txt
+
+          echo "Claude analysis complete. Response saved to claude-response.txt"
+          echo "Check the artifacts to view the full prompt and response."
 
       - name: Upload prompt
         uses: actions/upload-artifact@v4
