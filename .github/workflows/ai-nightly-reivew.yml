@@ -37,9 +37,14 @@ jobs:
           # Create results directory
           mkdir -p results
 
+          # Count total PRs for rate limiting
+          pr_count=$(echo $pr_numbers | wc -w)
+          current_pr=0
+
           # Process each PR
           for pr_num in $pr_numbers; do
-            echo "Processing PR #$pr_num..."
+            current_pr=$((current_pr + 1))
+            echo "Processing PR #$pr_num ($current_pr/$pr_count)..."
 
             pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json title,body,additions,deletions,changedFiles,files,labels,mergeable)
             comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
@@ -137,6 +142,12 @@ jobs:
               # Save parsed response to file
               echo "$response" | jq -r '.content[0].text' > results/pr-$pr_num-response.txt
               echo "Claude analysis complete for PR #$pr_num"
+            fi
+
+            # Rate limit: wait 60 seconds between PRs (except for the last one)
+            if [ $current_pr -lt $pr_count ]; then
+              echo "Waiting 60 seconds before next PR to avoid rate limits..."
+              sleep 60
             fi
           done
 
