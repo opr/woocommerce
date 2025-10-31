@@ -18,12 +18,33 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          pr_num=${{ github.event.inputs.pr_number || '59189' }}
+          # If PR number specified, use it; otherwise get all PRs merged in last 24 hours
+          if [ -n "${{ github.event.inputs.pr_number }}" ]; then
+            pr_numbers="${{ github.event.inputs.pr_number }}"
+          else
+            echo "Fetching PRs merged in last 24 hours..."
+            pr_numbers=$(gh pr list --repo woocommerce/woocommerce --state merged --limit 100 --json number,mergedAt | \
+              jq -r '[.[] | select(.mergedAt | fromdateiso8601 > (now - 86400))] | .[].number' | tr '\n' ' ')
 
-          pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json title,body,additions,deletions,changedFiles,files,labels,mergeable)
-          comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
-          reviews=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
-          review_comments=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
+            if [ -z "$pr_numbers" ]; then
+              echo "No PRs merged in the last 24 hours."
+              exit 0
+            fi
+
+            echo "Found PRs: $pr_numbers"
+          fi
+
+          # Create results directory
+          mkdir -p results
+
+          # Process each PR
+          for pr_num in $pr_numbers; do
+            echo "Processing PR #$pr_num..."
+
+            pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json title,body,additions,deletions,changedFiles,files,labels,mergeable)
+            comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
+            reviews=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
+            review_comments=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
 
           audit_data=$(jq -n \
             --argjson pr "$pr_data" \
@@ -104,30 +125,41 @@ jobs:
           JSON_EOF
           )
 
-          # Save raw response for debugging
-          echo "$response" > claude-raw-response.json
+            # Save raw response for debugging
+            echo "$response" > results/pr-$pr_num-raw-response.json
 
-          # Check if response has error
-          if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
-            echo "API Error occurred:"
-            echo "$response" | jq '.error'
-            echo "$response" | jq -r '.error.message' > claude-response.txt
-          else
-            # Save parsed response to file
-            echo "$response" | jq -r '.content[0].text' > claude-response.txt
-            echo "Claude analysis complete. Response saved to claude-response.txt"
-          fi
+            # Check if response has error
+            if echo "$response" | jq -e '.error' > /dev/null 2>&1; then
+              echo "API Error occurred for PR #$pr_num:"
+              echo "$response" | jq '.error'
+              echo "$response" | jq -r '.error.message' > results/pr-$pr_num-response.txt
+            else
+              # Save parsed response to file
+              echo "$response" | jq -r '.content[0].text' > results/pr-$pr_num-response.txt
+              echo "Claude analysis complete for PR #$pr_num"
+            fi
+          done
 
-          echo "Check the artifacts to view the full prompt and response."
+          echo ""
+          echo "All PRs processed. Check artifacts for individual results."
 
-      - name: Upload Claude response
+          # Create summary report
+          echo "# PR Audit Summary" > results/summary.md
+          echo "" >> results/summary.md
+          echo "Audited PRs: $pr_numbers" >> results/summary.md
+          echo "" >> results/summary.md
+
+          for pr_num in $pr_numbers; do
+            if [ -f "results/pr-$pr_num-response.txt" ]; then
+              echo "## PR #$pr_num" >> results/summary.md
+              echo "" >> results/summary.md
+              cat "results/pr-$pr_num-response.txt" >> results/summary.md
+              echo "" >> results/summary.md
+            fi
+          done
+
+      - name: Upload all results
         uses: actions/upload-artifact@v4
         with:
-          name: claude-response-pr-${{ github.run_number }}
-          path: claude-response.txt
-
-      - name: Upload raw API response
-        uses: actions/upload-artifact@v4
-        with:
-          name: claude-raw-response-pr-${{ github.run_number }}
-          path: claude-raw-response.json
+          name: pr-audit-results-${{ github.run_number }}
+          path: results/
