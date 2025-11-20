@@ -17,7 +17,8 @@ concurrency:
 jobs:
   fork-notice:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.head.repo.full_name != github.repository
+    # Run for forked PRs or workflow_dispatch (for testing)
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     permissions:
       pull-requests: write
     steps:
@@ -25,7 +26,39 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const reviewers = context.payload.pull_request.requested_reviewers || [];
+            // Debug logging
+            console.log('Event name:', context.eventName);
+            console.log('Context payload keys:', Object.keys(context.payload));
+            console.log('Has pull_request:', !!context.payload.pull_request);
+            console.log('Issue number:', context.issue?.number);
+            console.log('Payload PR number:', context.payload.pull_request?.number);
+            console.log('Workflow inputs:', context.payload.inputs);
+
+            // Get PR data
+            let pr = context.payload.pull_request;
+
+            // For workflow_dispatch or if PR not in payload, fetch it
+            if (!pr) {
+              // Try to get PR number from workflow inputs or context
+              const prNumber = context.payload.inputs?.pr_number || context.issue?.number || context.payload.number;
+              console.log('Attempting to fetch PR:', prNumber);
+
+              if (prNumber) {
+                pr = await github.rest.pulls.get({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: parseInt(prNumber)
+                }).then(r => r.data);
+              } else {
+                throw new Error('Cannot determine PR number from context');
+              }
+            }
+
+            console.log('PR number:', pr.number);
+            console.log('PR html_url:', pr.html_url);
+            console.log('Requested reviewers count:', pr.requested_reviewers?.length || 0);
+
+            const reviewers = pr.requested_reviewers || [];
             const reviewerMentions = reviewers.map(r => `@${r.login}`).join(' ');
             const mentionText = reviewerMentions ? `${reviewerMentions}\n\n` : '';
 
@@ -41,7 +74,7 @@ jobs:
 
             \`\`\`
             Please review this PR for backwards compatibility issues:
-            ${context.payload.pull_request.html_url}
+            ${pr.html_url}
 
             PRIMARY OBJECTIVE: Backwards Compatibility (BC) Review for WooCommerce/WordPress
 
@@ -74,7 +107,7 @@ jobs:
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              issue_number: pr.number,
               body: body
             });
 
@@ -139,3 +172,4 @@ jobs:
           # Tools for comprehensive PR review
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh api:*),Bash(git show:*),Bash(git diff:*),Bash(git ls-files:*),Bash(git grep:*),Bash(rg *)"
+
