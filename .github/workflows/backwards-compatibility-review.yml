@@ -1,7 +1,10 @@
 name: Backwards Compatibility PR Review
 
+# Uses pull_request_target so we can post comments on fork PRs (which have read-only tokens with pull_request)
+# The review-with-tracking job only runs for same-repo PRs, not forks
+
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, ready_for_review, reopened]
   workflow_dispatch:
     inputs:
@@ -18,7 +21,7 @@ jobs:
   fork-notice:
     runs-on: ubuntu-latest
     # Run only for forked PRs (not for workflow_dispatch)
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
     permissions:
       pull-requests: write
     steps:
@@ -95,6 +98,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
+          # pull_request_target defaults to base branch, so explicitly check out the PR branch
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
       - name: PR Review with Progress Tracking
