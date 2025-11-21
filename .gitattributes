@@ -1,6 +1,7 @@
 *       text=auto
 
 # Force LF In Configuration Files
+
 *.md    text    eol=lf
 *.json  text    eol=lf
 *.yml   text    eol=lf
