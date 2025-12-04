@@ -46,7 +46,7 @@ jobs:
             current_pr=$((current_pr + 1))
             echo "Processing PR #$pr_num ($current_pr/$pr_count)..."
 
-            pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json title,body,additions,deletions,changedFiles,files,labels,mergeable)
+            pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json number,title,body,additions,deletions,changedFiles,files,labels,mergeable)
             comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
             reviews=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
             review_comments=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
@@ -62,7 +62,9 @@ jobs:
           read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF' || true
           You are reviewing WooCommerce pull requests. Analyze the review process to identify unresolved critical issues.
 
-          Output only this exact JSON format:
+          CRITICAL: Output ONLY raw JSON. No markdown. No code fences. No backticks. No explanation text. Just the JSON object starting with { and ending with }
+
+          Use this exact JSON structure:
 
           {
             "pr_number": number,
@@ -70,12 +72,14 @@ jobs:
             "issues": [
               {
                 "title": "brief issue description",
-                "comment_link": "url to specific comment",
+                "comment_link": "url to specific comment or PR URL if general observation",
                 "status": "seems unaddressed" or "brief context",
                 "criticality": number
               }
             ]
           }
+
+          For comment_link: Use the specific comment URL if the issue comes from a review comment. Use the PR URL if it's a general observation (like missing reviews or merge conflicts).
 
           Filtering rules:
           - EXCLUDE: items marked for follow-up, acknowledged future work
@@ -98,7 +102,7 @@ jobs:
           - Nice-to-haves
           - "Could also do X" suggestions
 
-          Output valid JSON only. No markdown, no additional text.
+          REMEMBER: Raw JSON only. Your response must start with { and end with } - nothing else.
           PROMPT_EOF
 
           # Escape the system prompt for JSON
@@ -157,7 +161,8 @@ jobs:
           # Create summary report
           echo "# PR Audit Summary" > results/summary.md
           echo "" >> results/summary.md
-          echo "Audited PRs: $pr_numbers" >> results/summary.md
+          pr_count=$(echo $pr_numbers | wc -w | tr -d ' ')
+          echo "Audited $pr_count PR(s): $(echo $pr_numbers | sed 's/\([0-9]*\)/#\1/g')" >> results/summary.md
           echo "" >> results/summary.md
 
           for pr_num in $pr_numbers; do
