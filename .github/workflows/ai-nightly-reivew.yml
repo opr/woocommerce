@@ -23,7 +23,7 @@ jobs:
             pr_numbers="${{ github.event.inputs.pr_number }}"
           else
             echo "Fetching PRs merged in last 24 hours..."
-            pr_numbers=$(gh pr list --repo woocommerce/woocommerce --state merged --limit 100 --json number,mergedAt | \
+            pr_numbers=$(gh pr list --repo ${{ github.repository }} --state merged --limit 100 --json number,mergedAt | \
               jq -r '[.[] | select(.mergedAt | fromdateiso8601 > (now - 86400))] | .[].number' | tr '\n' ' ')
 
             if [ -z "$pr_numbers" ]; then
@@ -46,17 +46,18 @@ jobs:
             current_pr=$((current_pr + 1))
             echo "Processing PR #$pr_num ($current_pr/$pr_count)..."
 
-            pr_data=$(gh pr view $pr_num --repo woocommerce/woocommerce --json number,title,body,additions,deletions,changedFiles,files,labels,mergeable)
-            comments=$(gh api "/repos/woocommerce/woocommerce/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
-            reviews=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
-            review_comments=$(gh api "/repos/woocommerce/woocommerce/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
+            pr_data=$(gh pr view $pr_num --repo ${{ github.repository }} --json number,title,body,additions,deletions,changedFiles,files,labels,mergeable)
+            comments=$(gh api "/repos/${{ github.repository }}/issues/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, created: .created_at}]')
+            reviews=$(gh api "/repos/${{ github.repository }}/pulls/$pr_num/reviews" --jq '[.[] | {author: .user.login, state: .state, body: .body, submitted: .submitted_at}]')
+            review_comments=$(gh api "/repos/${{ github.repository }}/pulls/$pr_num/comments" --jq '[.[] | {author: .user.login, body: .body, path: .path, created: .created_at}]')
 
           audit_data=$(jq -n \
+            --arg repo "${{ github.repository }}" \
             --argjson pr "$pr_data" \
             --argjson comments "$comments" \
             --argjson reviews "$reviews" \
             --argjson review_comments "$review_comments" \
-            '{pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
+            '{repository: $repo, pr: $pr, comments: $comments, reviews: $reviews, review_comments: $review_comments}')
 
           # Create the system prompt in a variable (using || true to handle read's exit code)
           read -r -d '' SYSTEM_PROMPT << 'PROMPT_EOF' || true
@@ -68,7 +69,7 @@ jobs:
 
           {
             "pr_number": number,
-            "pr_link": "https://github.com/woocommerce/woocommerce/pull/NUMBER",
+            "pr_link": "https://github.com/{repository}/pull/{pr_number}",
             "issues": [
               {
                 "title": "brief issue description",
