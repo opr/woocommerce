@@ -129,6 +129,10 @@ jobs:
               {
                 "role": "user",
                 "content": $USER_MESSAGE
+              },
+              {
+                "role": "assistant",
+                "content": "{"
               }
             ]
           }
@@ -144,8 +148,8 @@ jobs:
               echo "$response" | jq '.error'
               echo "$response" | jq -r '.error.message' > results/pr-$pr_num-response.txt
             else
-              # Save parsed response to file
-              echo "$response" | jq -r '.content[0].text' > results/pr-$pr_num-response.txt
+              # Save parsed response to file (prepend { since we used prefill)
+              echo "{$(echo "$response" | jq -r '.content[0].text')" > results/pr-$pr_num-response.txt
               echo "Claude analysis complete for PR #$pr_num"
             fi
 
