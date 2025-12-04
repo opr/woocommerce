@@ -102,6 +102,8 @@ jobs:
           - Performance micro-optimizations
           - Nice-to-haves
           - "Could also do X" suggestions
+          - Missing changelog entries
+          - Missing linked issues/bugs
 
           REMEMBER: Raw JSON only. Your response must start with { and end with } - nothing else.
           PROMPT_EOF
